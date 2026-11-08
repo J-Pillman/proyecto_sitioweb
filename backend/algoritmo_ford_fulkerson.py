@@ -1,14 +1,77 @@
-from collections import deque, defaultdict #alternativa mejorada de contenedores
+from collections import deque
+
+
+# Cambio: valida la red antes de iniciar Ford-Fulkerson para rechazar datos ambiguos o inválidos.
+def validar_entrada(nodos, flechas, fuente, sumidero):
+    if not isinstance(nodos, list) or not nodos:
+        raise ValueError('La red debe incluir al menos un vértice.')
+    if not isinstance(flechas, list):
+        raise ValueError('Las aristas deben enviarse como una lista.')
+
+    ids = []
+    for nodo in nodos:
+        if not isinstance(nodo, dict) or 'id' not in nodo or 'label' not in nodo:
+            raise ValueError('Cada vértice debe incluir id y etiqueta.')
+        identificador = nodo['id']
+        if isinstance(identificador, bool) or not isinstance(identificador, int):
+            raise ValueError('Los identificadores de vértice deben ser enteros.')
+        ids.append(identificador)
+    if len(ids) != len(set(ids)):
+        raise ValueError('Los identificadores de vértice no pueden repetirse.')
+    ids_validos = set(ids)
+
+    if isinstance(fuente, bool) or not isinstance(fuente, int) or fuente not in ids_validos:
+        raise ValueError('La fuente debe ser un vértice existente.')
+    if isinstance(sumidero, bool) or not isinstance(sumidero, int) or sumidero not in ids_validos:
+        raise ValueError('El sumidero debe ser un vértice existente.')
+    if fuente == sumidero:
+        raise ValueError('La fuente y el sumidero deben ser vértices distintos.')
+
+    pares = set()
+    for arista in flechas:
+        if not isinstance(arista, dict) or not all(k in arista for k in ('origen', 'destino', 'capacidad')):
+            raise ValueError('Cada arista debe incluir origen, destino y capacidad.')
+        origen, destino, capacidad = arista['origen'], arista['destino'], arista['capacidad']
+        if (isinstance(origen, bool) or not isinstance(origen, int) or
+                isinstance(destino, bool) or not isinstance(destino, int)):
+            raise ValueError('Los extremos de las aristas deben ser identificadores enteros.')
+        if origen not in ids_validos or destino not in ids_validos:
+            raise ValueError('Cada arista debe conectar vértices existentes.')
+        if origen == destino:
+            raise ValueError('No se permiten aristas que conecten un vértice consigo mismo.')
+        par = (origen, destino)
+        if par in pares:
+            raise ValueError('No se permiten aristas duplicadas con la misma dirección.')
+        pares.add(par)
+        if isinstance(capacidad, bool) or not isinstance(capacidad, int) or capacidad < 0:
+            raise ValueError('Las capacidades deben ser enteros no negativos.')
+
+
 def ford_fulkerson(nodos, flechas, fuente, sumidero):
-    letras = {n['id']: n['label'] for n in nodos}
+    validar_entrada(nodos, flechas, fuente, sumidero)
+    letras = {n['id']: str(n['label']) for n in nodos}
 
     capacidad={}
+    # Cambio: mantiene la marca de las aristas suplementarias que se presentan como capacidad infinita.
+    capacidad_infinita=set()
     for f in flechas:
         capacidad[(f['origen'], f['destino'])] = f['capacidad']
+        if f.get('infinita'):
+            capacidad_infinita.add((f['origen'], f['destino']))
 
-    residual = defaultdict(lambda: defaultdict(int))
-    for (u,v), cap in capacidad.items():
-        residual[u][v]=cap
+    # Cambio: conserva arcos residuales separados para distinguir avance y devolución incluso con aristas opuestas.
+    adyacencia = {identificador: [] for identificador in letras}
+    for (u, v), cap in sorted(capacidad.items()):
+        indice_directo = len(adyacencia[u])
+        indice_inverso = len(adyacencia[v])
+        adyacencia[u].append({
+            'destino': v, 'residual': cap, 'inversa': indice_inverso,
+            'original': (u, v), 'sentido': 1
+        })
+        adyacencia[v].append({
+            'destino': u, 'residual': 0, 'inversa': indice_directo,
+            'original': (u, v), 'sentido': -1
+        })
 
     flujo= {(u,v): 0 for (u,v) in capacidad}
 
@@ -20,7 +83,8 @@ def ford_fulkerson(nodos, flechas, fuente, sumidero):
             'camino': camino,
             'cuello_botella' : botella,
             'flujo': [
-                {'origen': u, 'destino':v, 'flujo':flujo[(u,v)], 'capacidad':cap}
+                {'origen': u, 'destino':v, 'flujo':flujo[(u,v)], 'capacidad':cap,
+                 'infinita': (u, v) in capacidad_infinita}
                 for (u,v), cap in capacidad.items()
             ],
             'etiquetas':etiquetas
@@ -40,6 +104,7 @@ def ford_fulkerson(nodos, flechas, fuente, sumidero):
 
     while True:
         padre = {fuente: None}
+        arco_padre = {}
         cuello = {fuente: float('inf')}
         cola = deque([fuente])
         visitados = [fuente]
@@ -48,46 +113,61 @@ def ford_fulkerson(nodos, flechas, fuente, sumidero):
             u = cola.popleft()
             if u == sumidero:
                 break
-            for v in sorted(residual[u].keys()):
-                if v not in padre and residual[u][v] > 0:
+            aristas_ordenadas = sorted(
+                enumerate(adyacencia[u]),
+                key=lambda par: (par[1]['destino'], par[1]['original'], -par[1]['sentido'])
+            )
+            for indice, arista in aristas_ordenadas:
+                v = arista['destino']
+                if v not in padre and arista['residual'] > 0:
                     padre[v] = u
-                    cuello[v] = min(cuello[u], residual[u][v])
+                    arco_padre[v] = (u, indice)
+                    cuello[v] = min(cuello[u], arista['residual'])
                     cola.append(v)
                     visitados.append(v)
 
         if sumidero not in padre:
             break
 
-        camino = []
+        camino = [sumidero]
+        arcos_camino = []
         nodo = sumidero
-        while nodo is not None:
+        while nodo != fuente:
+            anterior, indice = arco_padre[nodo]
+            arcos_camino.append((anterior, indice))
+            nodo = anterior
             camino.append(nodo)
-            nodo = padre[nodo]
         camino.reverse()
+        arcos_camino.reverse()
 
         botella = cuello[sumidero]
 
+        # Cambio: asigna índices temporales y signos +/− por arco residual en cada búsqueda.
         etiquetas = []
-        for nodo_id in visitados:
+        for indice_etiqueta, nodo_id in enumerate(visitados):
             if nodo_id == fuente:
                 etiquetas.append({'id': nodo_id, 'etiqueta': 's'})
-            elif nodo_id == sumidero:
-                etiquetas.append({'id': nodo_id, 'etiqueta': 't'})
             else:
                 pred= padre[nodo_id]
+                _, indice_arista = arco_padre[nodo_id]
+                signo = '+' if adyacencia[pred][indice_arista]['sentido'] > 0 else '-'
+                marca = f'{signo}{indice_etiqueta}({letras[pred]},{cuello[nodo_id]})'
                 etiquetas.append({
                     'id': nodo_id,
-                    'etiqueta': f'({letras[pred]},{cuello[nodo_id]})'
+                    'etiqueta': f't {marca}' if nodo_id == sumidero else marca,
+                    'indice': indice_etiqueta,
+                    'signo': signo,
+                    'predecesor': pred,
+                    'capacidad_residual': cuello[nodo_id]
                 })
 
-        for i in range(len(camino)-1):
-            u,v= camino[i], camino[i+1]
-            residual[u][v] -= botella
-            residual[v][u] += botella           
-            if (u,v) in flujo:
-                flujo[(u,v)] += botella
-            else:
-                flujo[(v,u)] -= botella
+        for u, indice in arcos_camino:
+            arista = adyacencia[u][indice]
+            v = arista['destino']
+            inversa = adyacencia[v][arista['inversa']]
+            arista['residual'] -= botella
+            inversa['residual'] += botella
+            flujo[arista['original']] += arista['sentido'] * botella
 
         flujo_total += botella
 
@@ -104,7 +184,8 @@ def ford_fulkerson(nodos, flechas, fuente, sumidero):
     corte = []
     for (u,v),cap in capacidad.items():
         if u in lado_s and v not in lado_s:
-            corte.append({'origen':u,'destino':v,'capacidad':cap,'flujo':flujo[(u,v)]})
+            corte.append({'origen':u,'destino':v,'capacidad':cap,'flujo':flujo[(u,v)],
+                          'infinita': (u, v) in capacidad_infinita})
 
     paso_final = snapshot(
         paso_num, [], 0,

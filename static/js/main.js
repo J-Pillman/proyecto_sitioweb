@@ -1,5 +1,7 @@
 //Navegador
 let grafoActual = null;
+// Cambio: conserva la red de edición al preparar temporalmente sus terminales.
+let grafoBaseEdicion = null;
 let pasos = [];
 let pasoActual = 0;
 
@@ -7,6 +9,9 @@ let pasoActual = 0;
 let nodosManuales = [];
 let flechasManuales = [];
 let siguienteIdNodo = 0;
+// Cambio: conserva el estado entre los dos clics que definen una arista.
+let modoAgregarArista = false;
+let origenAristaSeleccionado = null;
 
 // Posiciones guardadas (para preservar al ejecutar algoritmo)
 let posicionesGuardadas = {};
@@ -109,11 +114,15 @@ function volverAMenu() {
     document.getElementById('elegir-modo').style.display = 'flex';
 
     grafoActual = null;
+    grafoBaseEdicion = null;
     pasos = [];
     pasoActual = 0;
     nodosManuales = [];
     flechasManuales = [];
     siguienteIdNodo = 0;
+    modoAgregarArista = false;
+    origenAristaSeleccionado = null;
+    document.getElementById('form-arista').style.display = 'none';
     posicionesGuardadas = {};
 
     if (red) { red.destroy(); red = null; }
@@ -164,52 +173,181 @@ document.getElementById('agregar-nodo').addEventListener('click', () => {
     dsNodos.add({ id, label, x, y });
     posicionesGuardadas[id] = { x, y };
     actualizarInfoManual();
-    actualizarSelectsArista();
 });
 
-document.getElementById('agregar-arista').addEventListener('click', () => {
-    if (nodosManuales.length < 2) {
-        alert('Agrega al menos 2 nodos primero');
-        return;
-    }
-    document.getElementById('form-arista').style.display = 'flex';
-    actualizarSelectsArista();
-});
+// Cambio: elimina vértices o aristas con doble clic y registra los clics usados para crear una arista.
+function habilitarEliminacionDobleClic() {
+    if (!red) return;
+    red.on('doubleClick', params => {
+        if (params.nodes.length) {
+            const id = params.nodes[0];
+            nodosManuales = nodosManuales.filter(n => n.id !== id);
+            const eliminadas = flechasManuales.filter(f => f.origen === id || f.destino === id);
+            flechasManuales = flechasManuales.filter(f => f.origen !== id && f.destino !== id);
+            dsFlechas.remove(eliminadas.map(f => `${f.origen}-${f.destino}`));
+            dsNodos.remove(id);
+            delete posicionesGuardadas[id];
+            if (origenAristaSeleccionado === id) origenAristaSeleccionado = null;
+            actualizarInfoManual();
+            actualizarEstadoArista(origenAristaSeleccionado === null
+                ? 'Selecciona el vértice de inicio.'
+                : `Inicio: ${nombreNodoManual(origenAristaSeleccionado)}. Selecciona el vértice final.`);
+            return;
+        }
+        if (params.edges.length) {
+            const ids = new Set(params.edges);
+            const eliminadas = flechasManuales.filter(f => ids.has(`${f.origen}-${f.destino}`));
+            flechasManuales = flechasManuales.filter(f => !ids.has(`${f.origen}-${f.destino}`));
+            dsFlechas.remove([...ids]);
+            actualizarInfoManual();
+        }
+    });
+    red.on('click', params => {
+        if (!modoAgregarArista || !params.nodes.length) return;
+        seleccionarExtremoArista(params.nodes[0]);
+    });
+}
 
-document.getElementById('cancelar-arista').addEventListener('click', () => {
+const nombreNodoManual = id => nodosManuales.find(n => n.id === id)?.label || String(id);
+
+function actualizarEstadoArista(texto) {
+    document.getElementById('estado-arista').textContent = texto;
+}
+
+function cancelarModoArista() {
+    modoAgregarArista = false;
+    origenAristaSeleccionado = null;
     document.getElementById('form-arista').style.display = 'none';
-});
+    actualizarEstadoArista('Indica la capacidad para empezar.');
+}
 
-document.getElementById('confirmar-arista').addEventListener('click', () => {
-    const origen = parseInt(document.getElementById('arista-origen').value);
-    const destino = parseInt(document.getElementById('arista-destino').value);
-    const capacidad = parseInt(document.getElementById('arista-capacidad').value);
-
-    if (origen === destino) {
-        alert('Origen y destino deben ser distintos');
+// Cambio: crea la arista dirigida con la capacidad elegida y los dos vértices pulsados.
+function seleccionarExtremoArista(id) {
+    if (origenAristaSeleccionado === null) {
+        origenAristaSeleccionado = id;
+        actualizarEstadoArista(`Inicio: ${nombreNodoManual(id)}. Selecciona el vértice final.`);
         return;
     }
-    if (isNaN(capacidad) || capacidad < 1) {
-        alert('La capacidad debe ser un número mayor a 0');
+    const origen = origenAristaSeleccionado;
+    const destino = id;
+    const inputCapacidad = document.getElementById('arista-capacidad');
+    const capacidad = Number(inputCapacidad.value);
+    if (origen === destino) {
+        alert('El vértice de inicio y el final deben ser distintos.');
+        origenAristaSeleccionado = null;
+        actualizarEstadoArista('Selecciona el vértice de inicio.');
+        return;
+    }
+    if (!Number.isInteger(capacidad) || capacidad < 1) {
+        alert('La capacidad debe ser un número entero mayor a 0.');
+        origenAristaSeleccionado = null;
+        actualizarEstadoArista('Selecciona el vértice de inicio.');
+        inputCapacidad.focus();
         return;
     }
     if (flechasManuales.some(f => f.origen === origen && f.destino === destino)) {
-        alert('Esa arista ya existe');
+        alert('Esa arista ya existe.');
+        origenAristaSeleccionado = null;
+        actualizarEstadoArista('Selecciona el vértice de inicio.');
         return;
     }
 
     flechasManuales.push({ origen, destino, capacidad });
     dsFlechas.add({
+        id: `${origen}-${destino}`,
         from: origen,
         to: destino,
         label: String(capacidad),
         title: 'capacidad ' + capacidad,
         arrows: 'to'
     });
-
-    document.getElementById('form-arista').style.display = 'none';
-    document.getElementById('arista-capacidad').value = 1;
     actualizarInfoManual();
+    cancelarModoArista();
+    inputCapacidad.value = 1;
+}
+
+// Cambio: detecta entradas/salidas y genera superterminales antes de iniciar el algoritmo.
+function prepararTerminales(grafo) {
+    const preparado = {
+        ...grafo,
+        nodos: grafo.nodos.map(n => ({ ...n })),
+        flechas: grafo.flechas.map(f => ({ ...f }))
+    };
+    const idsEntrada = new Set(preparado.flechas.map(f => f.destino));
+    const idsSalida = new Set(preparado.flechas.map(f => f.origen));
+    const entradas = preparado.nodos.filter(n => !idsEntrada.has(n.id) && idsSalida.has(n.id));
+    const salidas = preparado.nodos.filter(n => !idsSalida.has(n.id) && idsEntrada.has(n.id));
+
+    if (!entradas.length || !salidas.length) {
+        return { error: 'La red debe tener al menos una entrada con aristas salientes y una salida con aristas entrantes.' };
+    }
+
+    const maxId = Math.max(...preparado.nodos.map(n => Number(n.id)));
+    let idNuevo = maxId + 1;
+    const capacidadInfinita = Math.max(1, preparado.flechas.reduce((total, f) => total + Number(f.capacidad), 0) + 1);
+    const posicion = id => posicionesGuardadas[id] || preparado.nodos.find(n => n.id === id) || { x: 0, y: 0 };
+
+    if (entradas.length === 1) {
+        preparado.fuente = entradas[0].id;
+    } else {
+        const puntos = entradas.map(n => posicion(n.id));
+        const id = idNuevo++;
+        const nodo = { id, label: 'S*', x: Math.min(...puntos.map(p => p.x)) - 180,
+            y: puntos.reduce((s, p) => s + p.y, 0) / puntos.length };
+        preparado.nodos.push(nodo);
+        posicionesGuardadas[id] = { x: nodo.x, y: nodo.y };
+        for (const entrada of entradas) preparado.flechas.push({
+            origen: id, destino: entrada.id, capacidad: capacidadInfinita, infinita: true
+        });
+        preparado.fuente = id;
+    }
+
+    if (salidas.length === 1) {
+        preparado.sumidero = salidas[0].id;
+    } else {
+        const puntos = salidas.map(n => posicion(n.id));
+        const id = idNuevo++;
+        const nodo = { id, label: 'T*', x: Math.max(...puntos.map(p => p.x)) + 180,
+            y: puntos.reduce((s, p) => s + p.y, 0) / puntos.length };
+        preparado.nodos.push(nodo);
+        posicionesGuardadas[id] = { x: nodo.x, y: nodo.y };
+        for (const salida of salidas) preparado.flechas.push({
+            origen: salida.id, destino: id, capacidad: capacidadInfinita, infinita: true
+        });
+        preparado.sumidero = id;
+    }
+    if (preparado.fuente === preparado.sumidero) {
+        return { error: 'La fuente y el sumidero deben ser vértices distintos.' };
+    }
+    return { grafo: preparado };
+}
+
+document.getElementById('agregar-arista').addEventListener('click', () => {
+    if (nodosManuales.length < 2) {
+        alert('Agrega al menos 2 nodos primero');
+        return;
+    }
+    modoAgregarArista = false;
+    origenAristaSeleccionado = null;
+    document.getElementById('form-arista').style.display = 'flex';
+    document.getElementById('arista-capacidad').focus();
+    actualizarEstadoArista('Indica la capacidad para empezar.');
+});
+
+document.getElementById('cancelar-arista').addEventListener('click', () => {
+    cancelarModoArista();
+});
+
+// Cambio: valida la capacidad y activa la selección de origen y destino sobre el grafo.
+document.getElementById('confirmar-arista').addEventListener('click', () => {
+    const capacidad = Number(document.getElementById('arista-capacidad').value);
+    if (!Number.isInteger(capacidad) || capacidad < 1) {
+        alert('La capacidad debe ser un número entero mayor a 0.');
+        return;
+    }
+    modoAgregarArista = true;
+    origenAristaSeleccionado = null;
+    actualizarEstadoArista('Selecciona el vértice de inicio.');
 });
 
 document.getElementById('usar-red').addEventListener('click', () => {
@@ -222,6 +360,7 @@ document.getElementById('usar-red').addEventListener('click', () => {
         return;
     }
 
+    cancelarModoArista();
     guardarPosiciones();
     grafoActual = {
         nodos: nodosManuales.slice(),
@@ -230,7 +369,6 @@ document.getElementById('usar-red').addEventListener('click', () => {
         sumidero: nodosManuales[nodosManuales.length - 1].id
     };
 
-    document.getElementById('modo-manual').style.display = 'none';
     mostrarAlgoritmo();
 });
 
@@ -240,33 +378,11 @@ function crearGrafoVacio() {
     if (red) red.destroy();
     red = new vis.Network(contenedor, { nodes: dsNodos, edges: dsFlechas }, opcionesRed);
     red.on('dragEnd', guardarPosiciones);
+    habilitarEliminacionDobleClic();
 
 }
 
-function actualizarSelectsArista() {
-    const opciones = nodosManuales
-        .map(n => `<option value="${n.id}">${n.label}</option>`)
-        .join('');
-    document.getElementById('arista-origen').innerHTML = opciones;
-    document.getElementById('arista-destino').innerHTML = opciones;
-    bloquearOpcionDuplicada();
-}
-
-function bloquearOpcionDuplicada() {
-    const origen = document.getElementById('arista-origen');
-    const destino = document.getElementById('arista-destino');
-
-    for (const op of destino.options) {
-        op.disabled = op.value === origen.value;
-    }
-    for (const op of origen.options) {
-        op.disabled = op.value === destino.value;
-    }
-}
-
-document.getElementById('arista-origen').addEventListener('change', bloquearOpcionDuplicada);
-document.getElementById('arista-destino').addEventListener('change', bloquearOpcionDuplicada);
-
+// Cambio: muestra las entradas y salidas detectadas en la red manual.
 function actualizarInfoManual() {
     const listaNodos = nodosManuales
         .map(n => `${n.label}(${n.id})`)
@@ -275,15 +391,17 @@ function actualizarInfoManual() {
         .map(f => {
             const o = nodosManuales.find(n => n.id === f.origen);
             const d = nodosManuales.find(n => n.id === f.destino);
-            return `${o ? o.label : f.origen}→${d ? d.label : f.destino}(${f.capacidad})`;
+            return `${o ? o.label : f.origen}→${d ? d.label : f.destino}(${f.infinita ? '∞' : f.capacidad})`;
         })
         .join(', ');
 
-    const fuente = nodosManuales.length > 0 ? nodosManuales[0].label : '-';
-    const sumidero = nodosManuales.length > 1 ? nodosManuales[nodosManuales.length - 1].label : '-';
+    const destinos = new Set(flechasManuales.map(f => f.destino));
+    const origenes = new Set(flechasManuales.map(f => f.origen));
+    const entradas = nodosManuales.filter(n => !destinos.has(n.id) && origenes.has(n.id)).map(n => n.label).join(', ') || 'ninguna';
+    const salidas = nodosManuales.filter(n => !origenes.has(n.id) && destinos.has(n.id)).map(n => n.label).join(', ') || 'ninguna';
 
     document.getElementById('info-manual').textContent =
-        `Nodos: ${nodosManuales.length}/${MAX_NODOS} (${listaNodos || 'ninguno'}) | Fuente: ${fuente} | Sumidero: ${sumidero} | Aristas: ${listaFlechas || 'ninguna'}`;
+        `Nodos: ${nodosManuales.length}/${MAX_NODOS} (${listaNodos || 'ninguno'}) | Entradas: ${entradas} | Salidas: ${salidas} | Aristas: ${listaFlechas || 'ninguna'}`;
 }
 
 // ========== GRAFO (compartido) ==========
@@ -311,7 +429,17 @@ function mostrarGrafoCompleto(datos) {
 
 }
 
+// Cambio: prepara automáticamente las terminales y guarda la red base para volver a editar.
 function mostrarAlgoritmo() {
+    grafoBaseEdicion = grafoActual;
+    const resultadoTerminales = prepararTerminales(grafoActual);
+    if (resultadoTerminales.error) {
+        grafoActual = grafoBaseEdicion;
+        grafoBaseEdicion = null;
+        alert(resultadoTerminales.error);
+        return false;
+    }
+    grafoActual = resultadoTerminales.grafo;
     destruirRedPasos();
     pasos = [];
     pasoActual = 0;
@@ -331,6 +459,7 @@ function mostrarAlgoritmo() {
     document.getElementById('resultado').style.display = 'none';
     document.getElementById('ejecutar').style.display = 'inline-block';
     document.getElementById('volver-edicion').style.display = 'none';
+    return true;
 
 }
 
@@ -338,6 +467,7 @@ function mostrarAlgoritmo() {
 
 document.getElementById('ejecutar').addEventListener('click', async () => {
     if (!grafoActual) { alert('Primero crea un grafo'); return; }
+    if (grafoActual.fuente === grafoActual.sumidero) { alert('La fuente y el sumidero deben ser vértices distintos.'); return; }
     guardarPosiciones();
     const peticion = await fetch('/algoritmo', {
         method: 'POST',
@@ -376,6 +506,8 @@ document.getElementById('volver-edicion').addEventListener('click', () => {
     destruirRedPasos();
     pasos = [];
     pasoActual = 0;
+    if (grafoBaseEdicion) grafoActual = grafoBaseEdicion;
+    grafoBaseEdicion = null;
 
     const panel = nodosManuales.length > 0 ? 'modo-manual' : 'modo-aleatorio';
     document.getElementById(panel).style.display = 'flex';
@@ -399,6 +531,44 @@ document.addEventListener('keydown', e => {
 
 // ========== RENDERIZAR PASO ==========
 
+// Cambio: resalta solo las aristas cuyo flujo cambia en la iteración mostrada.
+function aristaUsadaEnPaso(arista, paso, flujoAntes) {
+    if (paso.camino.length < 2) return false;
+    const anterior = flujoAntes.find(f => f.origen === arista.origen && f.destino === arista.destino);
+    if (!anterior) return false;
+    const cambio = arista.flujo - anterior.flujo;
+    return paso.camino.some((nodo, i) => {
+        if (i >= paso.camino.length - 1) return false;
+        const siguiente = paso.camino[i + 1];
+        return (nodo === arista.origen && siguiente === arista.destino && cambio > 0) ||
+            (nodo === arista.destino && siguiente === arista.origen && cambio < 0);
+    });
+}
+
+// Cambio: etiqueta los avances y devoluciones según el cambio neto de flujo del paso actual.
+function obtenerSegmentoFlujo(origen, destino, flujoAntes, flujoDespues) {
+    const directoAntes = flujoAntes.find(f => f.origen === origen && f.destino === destino);
+    const directoDespues = flujoDespues.find(f => f.origen === origen && f.destino === destino);
+    const inversoAntes = flujoAntes.find(f => f.origen === destino && f.destino === origen);
+    const inversoDespues = flujoDespues.find(f => f.origen === destino && f.destino === origen);
+
+    if (directoAntes && directoDespues && directoDespues.flujo > directoAntes.flujo) {
+        return {
+            tramo: `${nombreNodo(origen)} → ${nombreNodo(destino)}`,
+            espacio: directoAntes.capacidad - directoAntes.flujo,
+            tipo: 'Tramo'
+        };
+    }
+    if (inversoAntes && inversoDespues && inversoDespues.flujo < inversoAntes.flujo) {
+        return {
+            tramo: `${nombreNodo(destino)} → ${nombreNodo(origen)} (devuelve)`,
+            espacio: inversoAntes.flujo,
+            tipo: 'Tramo (se devuelve flujo)'
+        };
+    }
+    return null;
+}
+
 function renderizarPaso() {
     const paso = pasos[pasoActual];
     const esPrimero = pasoActual === 0;
@@ -411,16 +581,15 @@ function renderizarPaso() {
         : pasos[pasoActual - 1].flujo;
 
     // --- Grafo ---
+    // Cambio: reconstruye la etiqueta de todos los vértices para que no queden signos ni pesos del paso previo.
     const datosNodos = grafoActual.nodos.map(nodo => {
     const et = paso.etiquetas.find(e => e.id === nodo.id);
     return { id: nodo.id, label: et ? nodo.label + '\n' + et.etiqueta : nodo.label };
 });
 
+// Cambio: presenta capacidades suplementarias como ∞ y refleja el flujo del paso activo.
 const datosAristas = paso.flujo.map(f => {
-    const enCamino = paso.camino.some((n, i) =>
-        i < paso.camino.length - 1 &&
-        ((paso.camino[i] === f.origen && paso.camino[i+1] === f.destino) ||
-         (paso.camino[i] === f.destino && paso.camino[i+1] === f.origen)));
+    const enCamino = aristaUsadaEnPaso(f, paso, flujoAntes);
 
     let color = COLOR_VACIA, colortexto = '#343434';
     if (enCamino)                     { color = colorCamino(pasoActual); }
@@ -430,7 +599,7 @@ const datosAristas = paso.flujo.map(f => {
     return {
         id: `${f.origen}-${f.destino}`,   
         from: f.origen, to: f.destino,
-        label: f.flujo + '/' + f.capacidad,
+        label: f.flujo + '/' + (grafoActual.flechas.find(a => a.origen === f.origen && a.destino === f.destino)?.infinita ? '∞' : f.capacidad),
         color: { color, highlight: color },
         font: { color: colortexto },
         width: enCamino ? 3 : (f.flujo > 0 ? 2 : 1),
@@ -447,6 +616,7 @@ if (!redPasos) {
     dsNodosPasos.update(datosNodos);    
     dsAristasPasos.update(datosAristas);
 }
+
     // --- Navegación ---
     document.getElementById('paso-info').textContent =
         esPrimero ? 'Inicio' : esUltimo ? 'Terminado' : `Paso ${pasoActual} de ${totalPasos}`;
@@ -520,9 +690,9 @@ function generarDetallePaso(paso, flujoAntes, esPrimero, esUltimo) {
         if (corte && corte.aristas.length > 0) {
             const filas = corte.aristas.map(a =>
                 `<tr><td>${nombreNodo(a.origen)}→${nombreNodo(a.destino)}</td>
-                 <td>${a.flujo}</td><td>${a.capacidad}</td></tr>`
+                 <td>${a.flujo}</td><td>${a.infinita ? '∞' : a.capacidad}</td></tr>`
             ).join('');
-            const totalCap = corte.aristas.reduce((s, a) => s + a.capacidad, 0);
+            const totalCap = corte.aristas.some(a => a.infinita) ? '∞' : corte.aristas.reduce((s, a) => s + a.capacidad, 0);
             corteHTML = `
                 <h3>Corte mínimo</h3>
                 <p>Nodos del lado de la fuente: <b>${corte.lado_s.map(nombreNodo).join(', ')}</b></p>
@@ -543,21 +713,8 @@ function generarDetallePaso(paso, flujoAntes, esPrimero, esUltimo) {
     const segmentos = [];
     for (let i = 0; i < camino.length - 1; i++) {
         const u = camino[i], v = camino[i + 1];
-        const fwd = flujoAntes.find(f => f.origen === u && f.destino === v);
-        const bwd = flujoAntes.find(f => f.origen === v && f.destino === u);
-        if (fwd) {
-            segmentos.push({
-                tramo: `${nombreNodo(u)} → ${nombreNodo(v)}`,
-                espacio: fwd.capacidad - fwd.flujo,
-                tipo: 'Tramo'
-            });
-        } else if (bwd) {
-            segmentos.push({
-                tramo: `${nombreNodo(v)} → ${nombreNodo(u)} (devuelve)`,
-                espacio: bwd.flujo,
-                tipo: 'Tramo (se devuelve flujo)'
-            });
-        }
+        const segmento = obtenerSegmentoFlujo(u, v, flujoAntes, paso.flujo);
+        if (segmento) segmentos.push(segmento);
     }
 
     const espacios = segmentos.map(s => s.espacio);
@@ -583,12 +740,13 @@ function generarDetallePaso(paso, flujoAntes, esPrimero, esUltimo) {
 
 // ========== RESULTADO FINAL ==========
 
+// Cambio: presenta las capacidades infinitas en el resultado sin exponer el límite numérico interno.
 function mostrarResultado(pasoFinal) {
     const flujoMax = pasoFinal.flujo_total;
 
     const filasAristas = pasoFinal.flujo.map(f =>
         `<tr><td>${nombreNodo(f.origen)}→${nombreNodo(f.destino)}</td>
-         <td>${f.flujo}</td><td>${f.capacidad}</td></tr>`
+         <td>${f.flujo}</td><td>${f.infinita ? '∞' : f.capacidad}</td></tr>`
     ).join('');
 
     const pasosConCamino = pasos.filter(p => p.camino.length > 0);
@@ -602,10 +760,10 @@ function mostrarResultado(pasoFinal) {
     const corte = pasoFinal.corte_minimo;
     let corteHTML = '';
     if (corte && corte.aristas.length > 0) {
-        const totalCap = corte.aristas.reduce((s, a) => s + a.capacidad, 0);
+        const totalCap = corte.aristas.some(a => a.infinita) ? '∞' : corte.aristas.reduce((s, a) => s + a.capacidad, 0);
         const filasCorte = corte.aristas.map(a =>
             `<tr><td>${nombreNodo(a.origen)}→${nombreNodo(a.destino)}</td>
-             <td>${a.flujo}</td><td>${a.capacidad}</td></tr>`
+             <td>${a.flujo}</td><td>${a.infinita ? '∞' : a.capacidad}</td></tr>`
         ).join('');
         corteHTML = `
             <div>

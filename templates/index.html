@@ -21,20 +21,20 @@
             <button id="cancelar-aleatorio">Cancelar</button>
         </div>
 
+        <!-- Cambio: indica la edición por clic de aristas, su borrado y la detección automática de terminales. -->
         <div id="modo-manual" style="display:none">
             <button id="agregar-nodo">Agregar Nodo</button>
             <button id="agregar-arista">Agregar Arista</button>
             <div id="form-arista" style="display:none">
-                <select id="arista-origen"></select>
-                <span>→</span>
-                <select id="arista-destino"></select>
-                <input type="number" id="arista-capacidad" min="1" value="1" placeholder="Capacidad">
-                <button id="confirmar-arista">Agregar</button>
+                <input type="number" id="arista-capacidad" min="1" step="1" value="1" placeholder="Capacidad">
+                <button id="confirmar-arista">Elegir vértices</button>
                 <button id="cancelar-arista">Cancelar</button>
+                <span id="estado-arista">Indica la capacidad para empezar.</span>
             </div>
             <button id="usar-red">Usar Red</button>
             <button id="cancelar-manual">Cancelar</button>
             <p id="info-manual"></p>
+            <small>Doble clic en un vértice para eliminarlo junto con sus aristas, o en una arista para eliminarla. Las terminales suplementarias se agregan automáticamente al usar la red.</small>
         </div>
 
         <div id="grafo"></div>
