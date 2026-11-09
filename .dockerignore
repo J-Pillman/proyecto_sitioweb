@@ -32,6 +32,10 @@ Dockerfile
 .dockerignore
 docker-compose.yml
 
+# Pruebas (no forman parte de la imagen)
+tests
+.ipynb_checkpoints
+
 # Entorno local
 .env
 .env.*

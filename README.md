@@ -8,10 +8,10 @@ Aplicación web en Flask que genera redes de flujo aleatorias o permite construi
 - Cada red tiene una **fuente** (`s`, a la izquierda) y un **sumidero** (`t`, a la derecha), con una ruta principal entre ellos y aristas adicionales hacia adelante.
 - Las aristas tienen capacidades aleatorias (1–10).
 - **Modo manual**: construye tu propia red nodo a nodo.
-  <!-- Cambio: documenta la selección de extremos por clic, el borrado con doble clic y la terminalidad automática. -->
   - Nodos etiquetados con letras (A, B, C…), entre 7 y 16.
-  - Para crear una arista, indica su capacidad y pulsa el vértice inicial y luego el final.
+  - Para crear una arista, indica su capacidad (se conserva mientras sigas en el modo) y pulsa el vértice inicial y luego el final.
   - Doble clic en un vértice para eliminarlo con sus aristas; doble clic en una arista para eliminarla.
+  - No acepta ciclos ni vértices aislados: al elegir los extremos o al usar la red se detectan y se rechazan con un mensaje explicativo.
   - La red se dibuja en vivo mientras la construyes.
   - Antes de ejecutar, detecta automáticamente las entradas y salidas; si hay varias, agrega una superfuente o un supersumidero con aristas de capacidad infinita.
 - Visualización interactiva y responsiva (PC y móvil): nodos con etiquetas, aristas dirigidas, capacidades y posiciones de nodo preservadas al arrastrar.
@@ -19,9 +19,10 @@ Aplicación web en Flask que genera redes de flujo aleatorias o permite construi
   - Busca caminos aumentantes con BFS, por lo que la variante implementada es Edmonds-Karp.
   - Cada camino aumentante se resalta con su propio color distintivo; colores según el estado de cada arista (llena en rojo, parcial en ámbar o vacía en gris).
   - Flujo/capacidad en cada arista y etiquetas BFS en los nodos.
-  - Navegación con botones *Anterior* / *Siguiente* / *Ir al final* / *Reiniciar*, botón *Volver* a edición o con las flechas del teclado.
-  - Barra de progreso del flujo total, leyenda dinámica y detalle explicativo de cada paso.
-  - Tablas de resultados con el flujo máximo, caminos usados y **corte mínimo** al finalizar (verificando flujo máximo = capacidad del corte).
+  - El avance es **arista por arista** dentro de cada camino aumentante, con leyenda dinámica sobre el lienzo.
+  - Navegación con botones *Anterior* / *Siguiente* / *Ir al final* / *Reiniciar*, botón *Volver* a edición o con las flechas del teclado; debajo se listan los caminos encontrados y el flujo total en una barra de progreso.
+  - Al terminar dibuja sobre el lienzo la línea divisoria del **corte mínimo** (S | T), coloreando los lados S y T y en verde las aristas que cruza.
+  - Tablas de resultados con el flujo en cada arista, los caminos usados y el **corte mínimo** (verificando flujo máximo = capacidad del corte).
 
 ## Requisitos
 
@@ -47,7 +48,7 @@ python app.py
 Abre [http://127.0.0.1:5001](http://127.0.0.1:5001) y elige un modo:
 
 - **Generar Aleatorio**: elige el número de nodos (7–16) y pulsa **Generar Grafo**.
-- **Manual**: agrega nodos y aristas con **Agregar Nodo** / **Agregar Arista** y pulsa **Usar Red**.
+- **Manual**: agrega nodos con **Agregar Nodo**; para las aristas indica la capacidad, pulsa **Elegir vértices** y haz clic en el vértice inicial y en el final (doble clic elimina elementos). Al terminar pulsa **Usar Red**.
 
 Luego pulsa **Ejecutar Ford-Fulkerson** para ver el algoritmo paso a paso.
 
@@ -119,7 +120,6 @@ Ejecuta el algoritmo de Ford-Fulkerson sobre una red de flujo.
   "pasos": [
     {
       "paso": 0,
-      "descripcion": "Estado inicial: flujo = 0 en todas las aristas",
       "flujo_total": 0,
       "camino": [],
       "cuello_botella": 0,
@@ -146,6 +146,8 @@ Cada paso incluye:
 ├── backend/
 │   ├── red_de_flujo.py                 # Generación de la red de flujo (networkx)
 │   └── algoritmo_ford_fulkerson.py     # Algoritmo de Ford-Fulkerson
+├── tests/
+│   └── test_ford_fulkerson.py          # Pruebas unitarias (unittest + networkx)
 ├── static/
 │   ├── css/style.css                   # Estilos
 │   ├── js/main.js                      # Lógica del frontend (vis-network)
