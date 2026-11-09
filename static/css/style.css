@@ -84,7 +84,7 @@ button[id*="cancelar"]:hover {
     background-color: var(--danger-hover);
 }
 
-input[type="number"], select {
+input[type="number"] {
     padding: 0.6rem;
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -93,7 +93,7 @@ input[type="number"], select {
     transition: border-color 0.2s;
 }
 
-input[type="number"]:focus, select:focus {
+input[type="number"]:focus {
     border-color: var(--primary);
     box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
@@ -114,16 +114,27 @@ input[type="number"]:focus, select:focus {
     gap: 1rem;
 }
 
-#form-arista {
+#modo-manual {
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+}
+
+.nivel-manual {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
     align-items: center;
     gap: 0.75rem;
     width: 100%;
-    padding-top: 1rem;
-    margin-top: 0.5rem;
+}
+
+.nivel-info {
+    flex-direction: column;
+    text-align: center;
+    padding-top: 0.75rem;
     border-top: 1px solid var(--border);
+    gap: 0.4rem;
 }
 
 #form-arista span {
@@ -135,14 +146,31 @@ input[type="number"]:focus, select:focus {
 /* =========================================
    4. Lienzos del Grafo
    ========================================= */
-#grafo, #grafo-pasos {
+#grafo {
     width: 100%;
-    height: 500px;
+    height: 360px;
     background-color: var(--card-bg);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     box-shadow: var(--shadow);
-    margin-bottom: 2rem;
+    margin-bottom: 1.25rem;
+}
+
+#bloque-visor-pasos {
+    margin-bottom: 1.5rem;
+}
+
+#grafo-pasos {
+    width: 100%;
+    height: 500px;
+    background-color: var(--card-bg);
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    border-radius: 0;
+    box-shadow: none;
+    margin: 0;
 }
 
 /* =========================================
@@ -155,10 +183,12 @@ input[type="number"]:focus, select:focus {
     justify-content: center;
     gap: 0.75rem;
     background: var(--card-bg);
-    padding: 1rem;
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    margin-bottom: 1.5rem;
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 var(--radius) var(--radius);
+    box-shadow: none;
+    margin: 0;
 }
 
 #paso-info {
@@ -235,34 +265,34 @@ input[type="number"]:focus, select:focus {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 1.5rem;
-    margin: 1.5rem 0;
-    padding: 1rem;
+    gap: 1rem;
+    margin: 0;
+    padding: 0.6rem 0.9rem;
+    font-size: 0.85rem;
     background: var(--card-bg);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-radius: var(--radius) var(--radius) 0 0;
+    box-shadow: none;
+}
+
+#leyenda span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
 }
 
 #leyenda .punto { 
-    display:inline-block; 
-    width:12px; 
-    height:12px; 
-    border-radius:50%; 
-    flex:none; }
+    display: inline-block; 
+    width: 10px; 
+    height: 10px; 
+    border-radius: 50%; 
+    flex: none;
+}
 
 /* =========================================
    8. Paneles de Resultados
    ========================================= */
-#paso-detalle {
-    background-color: #f0fdf4;
-    border-left: 4px solid var(--success);
-    color: #166534;
-    padding: 1rem 1.5rem;
-    border-radius: 0 var(--radius) var(--radius) 0;
-    margin-top: 1.5rem;
-    font-weight: 500;
-}
-
 #resultado {
     background: var(--card-bg);
     padding: 2rem;
@@ -270,25 +300,39 @@ input[type="number"]:focus, select:focus {
     box-shadow: var(--shadow);
     margin-top: 2rem;
     border-top: 4px solid var(--primary);
+    text-align: center;
 }
 
 #resultado-contenido {
     margin-top: 1rem;
     font-size: 1rem;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 1.5rem;
-    align-items: start;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2rem;
 }
 
 #resultado-contenido > div {
+    width: 100%;
+    max-width: 680px;
     min-width: 0;
+    text-align: center;
+}
+
+.flecha {
+    font-weight: 900;
+    color: #0f172a;
+    padding: 0 0.25rem;
 }
 
 /* =========================================
    9. Botones de Acción y Tablas
    ========================================= */
-#ejecutar, #volver-edicion {
+#acciones-algoritmo {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.75rem;
     margin-bottom: 1.5rem;
 }
 
@@ -306,7 +350,7 @@ table {
 
 th, td {
     padding: 0.65rem 0.85rem;
-    text-align: left;
+    text-align: center;
     border-bottom: 1px solid var(--border);
 }
 
@@ -333,9 +377,14 @@ tr:nth-child(even) td {
         padding: 0.75rem;
     }
 
-    #grafo, #grafo-pasos {
+    #grafo {
+        height: 280px;
+        margin-bottom: 1rem;
+    }
+
+    #grafo-pasos {
         height: 360px;
-        margin-bottom: 1.25rem;
+        margin: 0;
     }
 
     #elegir-modo button,
@@ -358,10 +407,6 @@ tr:nth-child(even) td {
 
     #resultado {
         padding: 1.25rem;
-    }
-
-    #resultado-contenido {
-        grid-template-columns: 1fr;
     }
 
     th, td {

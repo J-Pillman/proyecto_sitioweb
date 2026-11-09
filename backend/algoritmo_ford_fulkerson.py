@@ -75,10 +75,9 @@ def ford_fulkerson(nodos, flechas, fuente, sumidero):
 
     flujo= {(u,v): 0 for (u,v) in capacidad}
 
-    def snapshot(paso,camino,botella,etiquetas,desc,flujo_total):
+    def snapshot(paso, camino, botella, etiquetas, flujo_total):
         return {
             'paso' : paso,
-            'descripcion' : desc,
             'flujo_total' : flujo_total,
             'camino': camino,
             'cuello_botella' : botella,
@@ -93,9 +92,8 @@ def ford_fulkerson(nodos, flechas, fuente, sumidero):
     pasos = []
 
     pasos.append(snapshot(
-        0,[],0,
+        0, [], 0,
         [{'id':fuente, 'etiqueta': 's'}, {'id': sumidero, 'etiqueta': 't'}],
-        'Estado inicial: flujo = 0 en todas las aristas',
         0
     ))
 
@@ -171,11 +169,8 @@ def ford_fulkerson(nodos, flechas, fuente, sumidero):
 
         flujo_total += botella
 
-        camino_str = '→'.join(letras[n] for n in camino)
-        desc = f'Camino aumentante: {camino_str}. Cuello de botella: {botella}'
-
         pasos.append(snapshot(
-            paso_num, camino, botella, etiquetas, desc, flujo_total
+            paso_num, camino, botella, etiquetas, flujo_total
         ))
 
         paso_num+=1
@@ -190,7 +185,6 @@ def ford_fulkerson(nodos, flechas, fuente, sumidero):
     paso_final = snapshot(
         paso_num, [], 0,
         [{'id': fuente, 'etiqueta':'s'}, {'id': sumidero, 'etiqueta': 't'}],
-        f'No hay mas caminos aumentantes. Flujo maximo: {flujo_total}',
         flujo_total
     )
     paso_final['corte_minimo'] = {'lado_s': sorted(lado_s), 'aristas': corte}

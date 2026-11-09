@@ -4,6 +4,12 @@ from backend.red_de_flujo import generar_red_de_flujo
 from backend.algoritmo_ford_fulkerson import ford_fulkerson
 
 app = Flask(__name__) #Instancia de la clase Flask, crea la aplicacion Flask
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
+
+@app.after_request
+def desactivar_cache(respuesta):
+    respuesta.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    return respuesta
 
 @app.route('/') #Ruta donde se ejecutaran las funciones GET -> pagina principal, la raiz del sitio, cuando pones en el navegador este envia un GET a la ruta /
 def index():

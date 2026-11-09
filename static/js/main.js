@@ -20,9 +20,10 @@ const LETRAS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const MIN_NODOS = 7;
 const MAX_NODOS = 16;
 
-// Colores para las aristas
-let memoriaColoresAristas = {};
+// Colores para las aristas y el corte mínimo
 const COLOR_LLENA = '#d32f2f', COLOR_PARCIAL = '#f59e0b', COLOR_VACIA = '#848484';
+const COLOR_CORTE_ARISTA = '#15803d';
+const COLOR_CORTE_LINEA = '#b91c1c';
 
 const COLORES_CAMINOS = ['#2563eb','#059669','#7c3aed','#0891b2','#c026d3','#4d7c0f','#1e3a8a','#78350f'];
 const colorCamino = n => COLORES_CAMINOS[(n - 1) % COLORES_CAMINOS.length]; // n = nº de paso (≥1)
@@ -110,7 +111,6 @@ function volverAMenu() {
     document.getElementById('modo-manual').style.display = 'none';
     document.getElementById('contenedor-algoritmo').style.display = 'none';
     document.getElementById('resultado').style.display = 'none';
-    document.getElementById('form-arista').style.display = 'none';
     document.getElementById('elegir-modo').style.display = 'flex';
 
     grafoActual = null;
@@ -122,7 +122,8 @@ function volverAMenu() {
     siguienteIdNodo = 0;
     modoAgregarArista = false;
     origenAristaSeleccionado = null;
-    document.getElementById('form-arista').style.display = 'none';
+    document.getElementById('arista-capacidad').value = 1;
+    actualizarEstadoArista('Indica la capacidad para empezar.');
     posicionesGuardadas = {};
 
     if (red) { red.destroy(); red = null; }
@@ -196,7 +197,6 @@ function habilitarEliminacionDobleClic() {
         }
         if (params.edges.length) {
             const ids = new Set(params.edges);
-            const eliminadas = flechasManuales.filter(f => ids.has(`${f.origen}-${f.destino}`));
             flechasManuales = flechasManuales.filter(f => !ids.has(`${f.origen}-${f.destino}`));
             dsFlechas.remove([...ids]);
             actualizarInfoManual();
@@ -217,23 +217,58 @@ function actualizarEstadoArista(texto) {
 function cancelarModoArista() {
     modoAgregarArista = false;
     origenAristaSeleccionado = null;
-    document.getElementById('form-arista').style.display = 'none';
     actualizarEstadoArista('Indica la capacidad para empezar.');
 }
 
-// Cambio: crea la arista dirigida con la capacidad elegida y los dos vértices pulsados.
+function buscarCaminoManual(inicio, fin, listaAristas = flechasManuales) {
+    const nodoInicio = Number(inicio);
+    const nodoFin = Number(fin);
+    const cola = [[nodoInicio]];
+    const visitados = new Set([nodoInicio]);
+    while (cola.length > 0) {
+        const camino = cola.shift();
+        const actual = camino[camino.length - 1];
+        if (actual === nodoFin) return camino;
+        for (const f of listaAristas) {
+            const orig = Number(f.origen);
+            const dest = Number(f.destino);
+            if (orig === actual && !visitados.has(dest)) {
+                visitados.add(dest);
+                cola.push([...camino, dest]);
+            }
+        }
+    }
+    return null;
+}
+
+function detectarCicloEnGrafo(nodos, flechas) {
+    for (const f of flechas) {
+        if (Number(f.origen) === Number(f.destino)) {
+            return [Number(f.origen), Number(f.destino)];
+        }
+        const resto = flechas.filter(x => !(Number(x.origen) === Number(f.origen) && Number(x.destino) === Number(f.destino)));
+        const camino = buscarCaminoManual(f.destino, f.origen, resto);
+        if (camino) {
+            return [...camino, Number(f.destino)];
+        }
+    }
+    return null;
+}
+
+// Cambio: crea la arista dirigida con la capacidad elegida y los dos vértices pulsados, verificando que no se formen bucles/ciclos.
 function seleccionarExtremoArista(id) {
+    const idNum = Number(id);
     if (origenAristaSeleccionado === null) {
-        origenAristaSeleccionado = id;
-        actualizarEstadoArista(`Inicio: ${nombreNodoManual(id)}. Selecciona el vértice final.`);
+        origenAristaSeleccionado = idNum;
+        actualizarEstadoArista(`Inicio: ${nombreNodoManual(idNum)}. Selecciona el vértice final.`);
         return;
     }
-    const origen = origenAristaSeleccionado;
-    const destino = id;
+    const origen = Number(origenAristaSeleccionado);
+    const destino = idNum;
     const inputCapacidad = document.getElementById('arista-capacidad');
     const capacidad = Number(inputCapacidad.value);
     if (origen === destino) {
-        alert('El vértice de inicio y el final deben ser distintos.');
+        alert(`Error: No se permite un bucle en el mismo vértice (${nombreNodoManual(origen)} → ${nombreNodoManual(destino)}).`);
         origenAristaSeleccionado = null;
         actualizarEstadoArista('Selecciona el vértice de inicio.');
         return;
@@ -245,8 +280,16 @@ function seleccionarExtremoArista(id) {
         inputCapacidad.focus();
         return;
     }
-    if (flechasManuales.some(f => f.origen === origen && f.destino === destino)) {
-        alert('Esa arista ya existe.');
+    if (flechasManuales.some(f => Number(f.origen) === origen && Number(f.destino) === destino)) {
+        alert(`Error: La arista ${nombreNodoManual(origen)} → ${nombreNodoManual(destino)} ya existe.`);
+        origenAristaSeleccionado = null;
+        actualizarEstadoArista('Selecciona el vértice de inicio.');
+        return;
+    }
+    const caminoExistente = buscarCaminoManual(destino, origen);
+    if (caminoExistente) {
+        const cicloTexto = [...caminoExistente, destino].map(nombreNodoManual).join(' → ');
+        alert(`Error: No se puede agregar la arista ${nombreNodoManual(origen)} → ${nombreNodoManual(destino)} porque se formaría un bucle (ciclo): ${cicloTexto}.`);
         origenAristaSeleccionado = null;
         actualizarEstadoArista('Selecciona el vértice de inicio.');
         return;
@@ -263,7 +306,6 @@ function seleccionarExtremoArista(id) {
     });
     actualizarInfoManual();
     cancelarModoArista();
-    inputCapacidad.value = 1;
 }
 
 // Cambio: detecta entradas/salidas y genera superterminales antes de iniciar el algoritmo.
@@ -275,6 +317,15 @@ function prepararTerminales(grafo) {
     };
     const idsEntrada = new Set(preparado.flechas.map(f => f.destino));
     const idsSalida = new Set(preparado.flechas.map(f => f.origen));
+    const aislados = preparado.nodos.filter(n => !idsEntrada.has(n.id) && !idsSalida.has(n.id));
+    if (aislados.length > 0) {
+        return { error: `No se permiten nodos aislados sin aristas (${aislados.map(n => n.label).join(', ')}).` };
+    }
+    const ciclo = detectarCicloEnGrafo(preparado.nodos, preparado.flechas);
+    if (ciclo) {
+        const etCiclo = ciclo.map(id => preparado.nodos.find(n => Number(n.id) === Number(id))?.label || id).join(' → ');
+        return { error: `No se permiten bucles (ciclos) en la red: ${etCiclo}.` };
+    }
     const entradas = preparado.nodos.filter(n => !idsEntrada.has(n.id) && idsSalida.has(n.id));
     const salidas = preparado.nodos.filter(n => !idsSalida.has(n.id) && idsEntrada.has(n.id));
 
@@ -322,24 +373,12 @@ function prepararTerminales(grafo) {
     return { grafo: preparado };
 }
 
-document.getElementById('agregar-arista').addEventListener('click', () => {
-    if (nodosManuales.length < 2) {
-        alert('Agrega al menos 2 nodos primero');
-        return;
-    }
-    modoAgregarArista = false;
-    origenAristaSeleccionado = null;
-    document.getElementById('form-arista').style.display = 'flex';
-    document.getElementById('arista-capacidad').focus();
-    actualizarEstadoArista('Indica la capacidad para empezar.');
-});
-
-document.getElementById('cancelar-arista').addEventListener('click', () => {
-    cancelarModoArista();
-});
-
 // Cambio: valida la capacidad y activa la selección de origen y destino sobre el grafo.
 document.getElementById('confirmar-arista').addEventListener('click', () => {
+    if (nodosManuales.length < 2) {
+        alert('Agrega al menos 2 nodos primero.');
+        return;
+    }
     const capacidad = Number(document.getElementById('arista-capacidad').value);
     if (!Number.isInteger(capacidad) || capacidad < 1) {
         alert('La capacidad debe ser un número entero mayor a 0.');
@@ -357,6 +396,16 @@ document.getElementById('usar-red').addEventListener('click', () => {
     }
     if (flechasManuales.length < 1) {
         alert('Necesitas al menos 1 arista');
+        return;
+    }
+    const conectados = new Set();
+    for (const f of flechasManuales) {
+        conectados.add(f.origen);
+        conectados.add(f.destino);
+    }
+    const aislados = nodosManuales.filter(n => !conectados.has(n.id));
+    if (aislados.length > 0) {
+        alert(`Error: No se permiten nodos aislados sin aristas (${aislados.map(n => n.label).join(', ')}). Conéctalos o elimínalos con doble clic.`);
         return;
     }
 
@@ -443,8 +492,6 @@ function mostrarAlgoritmo() {
     destruirRedPasos();
     pasos = [];
     pasoActual = 0;
-    memoriaColoresAristas = {};
-    document.getElementById('paso-detalle').innerHTML = '';
     document.getElementById('paso-info').textContent = '';
     document.getElementById('flujo-total-num').textContent = '0';
     document.getElementById('flujo-total-max').textContent = '';
@@ -454,7 +501,6 @@ function mostrarAlgoritmo() {
     document.getElementById('siguiente').disabled = true;
     document.getElementById('contenedor-algoritmo').style.display = 'block';
     document.getElementById('modo-manual').style.display = 'none';
-    document.getElementById('modo-aleatorio').style.display = 'none';
     document.getElementById('pasos-algoritmo').style.display = 'none';
     document.getElementById('resultado').style.display = 'none';
     document.getElementById('ejecutar').style.display = 'inline-block';
@@ -464,6 +510,69 @@ function mostrarAlgoritmo() {
 }
 
 // ========== FORD-FULKERSON ==========
+
+// Desglosa cada camino aumentante en sub-pasos arista por arista.
+function expandirPasosPorArista(pasosOriginales) {
+    if (!pasosOriginales || pasosOriginales.length === 0) return [];
+    const expandidos = [pasosOriginales[0]];
+
+    for (let idx = 1; idx < pasosOriginales.length - 1; idx++) {
+        const p = pasosOriginales[idx];
+        const previo = pasosOriginales[idx - 1];
+        const flujoPrevio = previo.flujo;
+        const flujoTotalPrevio = previo.flujo_total;
+        const totalAristas = p.camino.length - 1;
+
+        let flujoParcial = flujoPrevio.map(a => ({ ...a }));
+
+        for (let i = 0; i < totalAristas; i++) {
+            const u = p.camino[i];
+            const v = p.camino[i + 1];
+            const esUltimaArista = i === totalAristas - 1;
+
+            const directaFinal = p.flujo.find(a => a.origen === u && a.destino === v);
+            const directaPrevia = flujoPrevio.find(a => a.origen === u && a.destino === v);
+
+            if (directaFinal && directaPrevia && directaFinal.flujo !== directaPrevia.flujo) {
+                flujoParcial = flujoParcial.map(a =>
+                    (a.origen === u && a.destino === v) ? { ...a, flujo: directaFinal.flujo } : a
+                );
+            } else {
+                const inversaFinal = p.flujo.find(a => a.origen === v && a.destino === u);
+                if (inversaFinal) {
+                    flujoParcial = flujoParcial.map(a =>
+                        (a.origen === v && a.destino === u) ? { ...a, flujo: inversaFinal.flujo } : a
+                    );
+                }
+            }
+
+            const nodosRecorridos = new Set(p.camino.slice(0, i + 2));
+            const etiquetasParciales = p.etiquetas.filter(e => nodosRecorridos.has(e.id));
+            if (!nodosRecorridos.has(grafoActual.sumidero)) {
+                etiquetasParciales.push({ id: grafoActual.sumidero, etiqueta: 't' });
+            }
+
+            expandidos.push({
+                paso: p.paso,
+                flujo_total: esUltimaArista ? p.flujo_total : flujoTotalPrevio,
+                camino: [u, v],
+                camino_parcial: p.camino.slice(0, i + 2),
+                camino_completo: p.camino,
+                arista_num: i + 1,
+                arista_total: totalAristas,
+                es_fin_camino: esUltimaArista,
+                cuello_botella: p.cuello_botella,
+                flujo: flujoParcial.map(a => ({ ...a })),
+                etiquetas: etiquetasParciales
+            });
+        }
+    }
+
+    if (pasosOriginales.length > 1) {
+        expandidos.push(pasosOriginales[pasosOriginales.length - 1]);
+    }
+    return expandidos;
+}
 
 document.getElementById('ejecutar').addEventListener('click', async () => {
     if (!grafoActual) { alert('Primero crea un grafo'); return; }
@@ -476,9 +585,10 @@ document.getElementById('ejecutar').addEventListener('click', async () => {
     });
     const datos = await peticion.json();
     if (!peticion.ok) { alert('Error: ' + datos.error); return; }
-    pasos = datos.pasos;
+    pasos = expandirPasosPorArista(datos.pasos);
     pasoActual = 0;
 
+    document.getElementById('modo-aleatorio').style.display = 'none';
     document.getElementById('ejecutar').style.display = 'none';
     document.getElementById('volver-edicion').style.display = 'inline-block';
 
@@ -496,8 +606,7 @@ document.getElementById('siguiente').addEventListener('click', () => {
     if (pasoActual < pasos.length - 1) { pasoActual++; renderizarPaso(); }
 });
 
-document.getElementById('volver-edicion').addEventListener('click', () => {
-    document.getElementById('contenedor-algoritmo').style.display = 'none';
+function regresarAPanelModo() {
     document.getElementById('pasos-algoritmo').style.display = 'none';
     document.getElementById('resultado').style.display = 'none';
     document.getElementById('ejecutar').style.display = 'inline-block';
@@ -509,9 +618,15 @@ document.getElementById('volver-edicion').addEventListener('click', () => {
     if (grafoBaseEdicion) grafoActual = grafoBaseEdicion;
     grafoBaseEdicion = null;
 
-    const panel = nodosManuales.length > 0 ? 'modo-manual' : 'modo-aleatorio';
-    document.getElementById(panel).style.display = 'flex';
-});
+    if (nodosManuales.length > 0) {
+        document.getElementById('contenedor-algoritmo').style.display = 'none';
+        document.getElementById('modo-manual').style.display = 'flex';
+    } else {
+        document.getElementById('modo-aleatorio').style.display = 'flex';
+    }
+}
+
+document.getElementById('volver-edicion').addEventListener('click', regresarAPanelModo);
 
 document.getElementById('ir-final').addEventListener('click', () => {
     pasoActual = pasos.length - 1;
@@ -545,28 +660,126 @@ function aristaUsadaEnPaso(arista, paso, flujoAntes) {
     });
 }
 
-// Cambio: etiqueta los avances y devoluciones según el cambio neto de flujo del paso actual.
-function obtenerSegmentoFlujo(origen, destino, flujoAntes, flujoDespues) {
-    const directoAntes = flujoAntes.find(f => f.origen === origen && f.destino === destino);
-    const directoDespues = flujoDespues.find(f => f.origen === origen && f.destino === destino);
-    const inversoAntes = flujoAntes.find(f => f.origen === destino && f.destino === origen);
-    const inversoDespues = flujoDespues.find(f => f.origen === destino && f.destino === origen);
+// Dibuja la línea divisoria del corte mínimo (S | T) sobre el lienzo en el paso final.
+function dibujarLineaCorte(ctx) {
+    if (!pasos.length || pasoActual !== pasos.length - 1 || !redPasos) return;
+    const paso = pasos[pasoActual];
+    if (!paso.corte_minimo || paso.flujo_total <= 0) return;
 
-    if (directoAntes && directoDespues && directoDespues.flujo > directoAntes.flujo) {
-        return {
-            tramo: `${nombreNodo(origen)} → ${nombreNodo(destino)}`,
-            espacio: directoAntes.capacidad - directoAntes.flujo,
-            tipo: 'Tramo'
-        };
+    const ladoS = new Set(paso.corte_minimo.lado_s);
+    const pos = redPasos.getPositions();
+    const posFuente = pos[grafoActual.fuente] || { x: 0, y: 0 };
+    const refX = posFuente.x - 60;
+    const refY = posFuente.y;
+
+    const cruces = [];
+    const crucesCorteDirecto = [];
+    for (const f of paso.flujo) {
+        const uEnS = ladoS.has(f.origen);
+        const vEnS = ladoS.has(f.destino);
+        if (uEnS !== vEnS && pos[f.origen] && pos[f.destino]) {
+            const pS = uEnS ? pos[f.origen] : pos[f.destino];
+            const pT = uEnS ? pos[f.destino] : pos[f.origen];
+            const punto = {
+                x: pS.x * 0.55 + pT.x * 0.45,
+                y: pS.y * 0.55 + pT.y * 0.45
+            };
+            cruces.push(punto);
+            if (uEnS && !vEnS) {
+                crucesCorteDirecto.push(punto);
+            }
+        }
     }
-    if (inversoAntes && inversoDespues && inversoDespues.flujo < inversoAntes.flujo) {
-        return {
-            tramo: `${nombreNodo(destino)} → ${nombreNodo(origen)} (devuelve)`,
-            espacio: inversoAntes.flujo,
-            tipo: 'Tramo (se devuelve flujo)'
-        };
+    if (!cruces.length) return;
+
+    // Si un nodo de S tiene nodos de T en su misma vertical, agregamos un punto guía a su derecha
+    // para que la curva rodee al nodo de S y nunca lo atraviese ni cruce aristas internas S->S.
+    const todosNodos = Object.entries(pos).map(([id, p]) => ({ id: Number(id), x: p.x, y: p.y }));
+    for (const nS of todosNodos) {
+        if (!ladoS.has(nS.id) || nS.id === grafoActual.fuente) continue;
+        const tieneTEnMismaColumna = todosNodos.some(
+            nT => !ladoS.has(nT.id) && Math.abs(nT.x - nS.x) < 35
+        );
+        const yaHayCruceDerecha = cruces.some(
+            c => c.x > nS.x + 20 && Math.abs(c.y - nS.y) < 35
+        );
+        if (tieneTEnMismaColumna && !yaHayCruceDerecha) {
+            cruces.push({ x: nS.x + 55, y: nS.y });
+        }
     }
-    return null;
+
+    // Ordenar puntos por ángulo polar desde la fuente (de arriba hacia abajo rodeando el conjunto S)
+    cruces.sort((a, b) => Math.atan2(a.y - refY, a.x - refX) - Math.atan2(b.y - refY, b.x - refX));
+
+    // Empujar cualquier punto del corte que pase demasiado cerca del centro de algún nodo
+    for (const c of cruces) {
+        for (const n of todosNodos) {
+            const dx = c.x - n.x;
+            const dy = c.y - n.y;
+            const dist = Math.hypot(dx, dy);
+            if (dist < 42) {
+                if (ladoS.has(n.id)) {
+                    c.x = Math.max(c.x, n.x + 44);
+                } else {
+                    c.x = Math.min(c.x, n.x - 44);
+                }
+            }
+        }
+    }
+
+    const minY = Math.min(...todosNodos.map(n => n.y), ...cruces.map(c => c.y));
+    const maxY = Math.max(...todosNodos.map(n => n.y), ...cruces.map(c => c.y));
+    const primero = cruces[0];
+    const ultimo = cruces[cruces.length - 1];
+    const puntos = [
+        { x: primero.x, y: minY - 50 },
+        ...cruces,
+        { x: ultimo.x, y: maxY + 50 }
+    ];
+
+    ctx.save();
+    ctx.strokeStyle = COLOR_CORTE_LINEA;
+    ctx.lineWidth = 4.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.setLineDash([10, 6]);
+    ctx.beginPath();
+    ctx.moveTo(puntos[0].x, puntos[0].y);
+
+    for (let i = 0; i < puntos.length - 1; i++) {
+        const actual = puntos[i];
+        const sig = puntos[i + 1];
+        const mx = (actual.x + sig.x) / 2;
+        const my = (actual.y + sig.y) / 2;
+        ctx.quadraticCurveTo(actual.x, actual.y, mx, my);
+    }
+    const fin = puntos[puntos.length - 1];
+    ctx.lineTo(fin.x, fin.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Marcar con un punto cada arista del corte mínimo (S -> T) que es cortada
+    for (const p of crucesCorteDirecto) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 5.5, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = COLOR_CORTE_LINEA;
+        ctx.stroke();
+    }
+
+    // Etiquetas S y T arriba de la línea de corte sin pisar ningún nodo
+    ctx.font = 'italic bold 22px Georgia, serif';
+    ctx.textAlign = 'center';
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#ffffff';
+    ctx.strokeText('S', puntos[0].x - 26, puntos[0].y + 8);
+    ctx.strokeText('T', puntos[0].x + 26, puntos[0].y + 8);
+    ctx.fillStyle = '#dc2626';
+    ctx.fillText('S', puntos[0].x - 26, puntos[0].y + 8);
+    ctx.fillText('T', puntos[0].x + 26, puntos[0].y + 8);
+    ctx.restore();
 }
 
 function renderizarPaso() {
@@ -574,6 +787,8 @@ function renderizarPaso() {
     const esPrimero = pasoActual === 0;
     const esUltimo = pasoActual === pasos.length - 1;
     const totalPasos = pasos.length - 1;
+    const mostrarCorte = esUltimo && paso.corte_minimo && paso.flujo_total > 0;
+    const ladoS = mostrarCorte ? new Set(paso.corte_minimo.lado_s) : null;
 
     // Flujo antes de este paso
     const flujoAntes = esPrimero
@@ -581,45 +796,70 @@ function renderizarPaso() {
         : pasos[pasoActual - 1].flujo;
 
     // --- Grafo ---
-    // Cambio: reconstruye la etiqueta de todos los vértices para que no queden signos ni pesos del paso previo.
+    // Cambio: reconstruye la etiqueta de todos los vértices y colorea los conjuntos S y T al finalizar.
     const datosNodos = grafoActual.nodos.map(nodo => {
-    const et = paso.etiquetas.find(e => e.id === nodo.id);
-    return { id: nodo.id, label: et ? nodo.label + '\n' + et.etiqueta : nodo.label };
-});
+        const et = paso.etiquetas.find(e => e.id === nodo.id);
+        let colorNodo = { background: '#97c2fc', border: '#2b7ce9' };
+        let colorFuenteTexto = '#343434';
+        if (mostrarCorte) {
+            if (nodo.id === grafoActual.fuente) {
+                colorNodo = { background: '#ea580c', border: '#9a3412' };
+                colorFuenteTexto = '#ffffff';
+            } else if (ladoS.has(nodo.id)) {
+                colorNodo = { background: '#1e3a8a', border: '#172554' };
+                colorFuenteTexto = '#ffffff';
+            } else {
+                colorNodo = { background: '#06b6d4', border: '#0e7490' };
+                colorFuenteTexto = '#0f172a';
+            }
+        }
+        return {
+            id: nodo.id,
+            label: et ? nodo.label + '\n' + et.etiqueta : nodo.label,
+            color: colorNodo,
+            font: { color: colorFuenteTexto, size: 16 }
+        };
+    });
 
-// Cambio: presenta capacidades suplementarias como ∞ y refleja el flujo del paso activo.
-const datosAristas = paso.flujo.map(f => {
-    const enCamino = aristaUsadaEnPaso(f, paso, flujoAntes);
+    // Cambio: presenta capacidades suplementarias como ∞ y resalta las aristas del corte mínimo al terminar.
+    const datosAristas = paso.flujo.map(f => {
+        const enCamino = aristaUsadaEnPaso(f, paso, flujoAntes);
+        const enCorte = mostrarCorte && paso.corte_minimo.aristas.some(
+            a => a.origen === f.origen && a.destino === f.destino
+        );
 
-    let color = COLOR_VACIA, colortexto = '#343434';
-    if (enCamino)                     { color = colorCamino(pasoActual); }
-    else if (f.flujo >= f.capacidad)  { color = COLOR_LLENA; colortexto = COLOR_LLENA; }
-    else if (f.flujo > 0)             { color = COLOR_PARCIAL; }
+        let color = COLOR_VACIA, colortexto = '#343434';
+        if (enCorte)                      { color = COLOR_CORTE_ARISTA; colortexto = COLOR_CORTE_ARISTA; }
+        else if (enCamino)                { color = colorCamino(paso.paso); }
+        else if (f.flujo >= f.capacidad)  { color = COLOR_LLENA; colortexto = COLOR_LLENA; }
+        else if (f.flujo > 0)             { color = COLOR_PARCIAL; }
 
-    return {
-        id: `${f.origen}-${f.destino}`,   
-        from: f.origen, to: f.destino,
-        label: f.flujo + '/' + (grafoActual.flechas.find(a => a.origen === f.origen && a.destino === f.destino)?.infinita ? '∞' : f.capacidad),
-        color: { color, highlight: color },
-        font: { color: colortexto },
-        width: enCamino ? 3 : (f.flujo > 0 ? 2 : 1),
-        arrows: 'to'
-    };
-});
+        return {
+            id: `${f.origen}-${f.destino}`,   
+            from: f.origen, to: f.destino,
+            label: f.flujo + '/' + (grafoActual.flechas.find(a => a.origen === f.origen && a.destino === f.destino)?.infinita ? '∞' : f.capacidad),
+            color: { color, highlight: color },
+            font: { color: colortexto },
+            width: enCorte ? 4 : (enCamino ? 3 : (f.flujo > 0 ? 2 : 1)),
+            arrows: 'to'
+        };
+    });
 
-if (!redPasos) {
-    dsNodosPasos = new vis.DataSet(aplicarPosiciones(datosNodos));
-    dsAristasPasos = new vis.DataSet(datosAristas);
-    redPasos = new vis.Network(contenedorPasos, { nodes: dsNodosPasos, edges: dsAristasPasos }, opcionesRed);
-    redPasos.fit();
-} else {
-    dsNodosPasos.update(datosNodos);    
-    dsAristasPasos.update(datosAristas);
-}
+    if (!redPasos) {
+        dsNodosPasos = new vis.DataSet(aplicarPosiciones(datosNodos));
+        dsAristasPasos = new vis.DataSet(datosAristas);
+        redPasos = new vis.Network(contenedorPasos, { nodes: dsNodosPasos, edges: dsAristasPasos }, opcionesRed);
+        redPasos.on('afterDrawing', dibujarLineaCorte);
+        redPasos.fit();
+    } else {
+        dsNodosPasos.update(datosNodos);    
+        dsAristasPasos.update(datosAristas);
+        redPasos.redraw();
+    }
 
     // --- Navegación ---
     document.getElementById('paso-info').textContent =
-        esPrimero ? 'Inicio' : esUltimo ? 'Terminado' : `Paso ${pasoActual} de ${totalPasos}`;
+        esPrimero ? 'Inicio' : esUltimo ? 'Terminado' : `Camino ${paso.paso} (arista ${paso.arista_num}/${paso.arista_total}) · Paso ${pasoActual}/${totalPasos}`;
     document.getElementById('anterior').disabled = esPrimero;
     document.getElementById('siguiente').disabled = esUltimo;
 
@@ -632,21 +872,24 @@ if (!redPasos) {
         flujoMax > 0 ? (100 * flujoTotal / flujoMax) + '%' : '0%';
 
     // --- Chips de caminos ---
-    const chipsHTML = pasos.slice(0, pasoActual + 1)
-    .filter(p => p.camino.length > 0)
+    const caminosVistos = new Map();
+    for (const p of pasos.slice(0, pasoActual + 1)) {
+        if (p.camino.length > 0) {
+            caminosVistos.set(p.paso, p);
+        }
+    }
+    const chipsHTML = [...caminosVistos.values()]
     .map(p => {
         const color = colorCamino(p.paso);
-        const activo = p === paso ? `background:${color}; color:#fff;` : '';
+        const activo = (!esPrimero && !esUltimo && p.paso === paso.paso) ? `background:${color}; color:#fff;` : '';
+        const nodosMostrar = p.camino_parcial || p.camino;
         return `<span class="chip" style="color:${color}; border-color:${color}; ${activo}">` +
-               `${p.camino.map(nombreNodo).join(' → ')} (+${p.cuello_botella})</span>`;
+               `${nodosMostrar.map(nombreNodo).join(' → ')} (+${p.cuello_botella})</span>`;
     }).join(' ') || '<span>Ninguno</span>';
 
     document.getElementById('chips').innerHTML = chipsHTML;
 
     renderizarLeyenda(paso);
-
-    // --- Detalle del paso ---
-    document.getElementById('paso-detalle').innerHTML = generarDetallePaso(paso, flujoAntes, esPrimero, esUltimo);
 
     // --- Resultado final ---
     if (esUltimo) {
@@ -657,85 +900,21 @@ if (!redPasos) {
 }
 
 function renderizarLeyenda(paso) {
+    const esUltimo = pasoActual === pasos.length - 1;
     const items = [
-        { color: COLOR_LLENA,   texto: 'Llena (ya no admite más)' },
+        { color: COLOR_LLENA,   texto: 'Llena' },
         { color: COLOR_PARCIAL, texto: 'Con flujo parcial' },
-        { color: COLOR_VACIA,   texto: 'Vacía (flujo 0)' },
+        { color: COLOR_VACIA,   texto: 'Vacía' },
         paso.camino.length > 0
             ? { color: colorCamino(paso.paso),
                 texto: `Camino ${paso.paso}: ${paso.camino.map(nombreNodo).join(' → ')} (+${paso.cuello_botella})` }
-            : { color: '#cbd5e1', texto: 'Camino actual: ninguno en este paso' }
+            : (esUltimo && paso.corte_minimo && paso.flujo_total > 0)
+                ? { color: COLOR_CORTE_ARISTA, texto: 'Arista del corte mínimo' }
+                : { color: '#cbd5e1', texto: 'Arista actual: ninguna en este paso' }
     ];
     document.getElementById('leyenda').innerHTML = items
         .map(i => `<span><i class="punto" style="background:${i.color}"></i>${i.texto}</span>`)
         .join('');
-}
-
-function generarDetallePaso(paso, flujoAntes, esPrimero, esUltimo) {
-    if (esPrimero) {
-        return `<div><b>Al empezar</b>, ninguna arista lleva flujo (todas muestran 0).
-            El programa buscará caminos desde la fuente <b>${nombreNodo(grafoActual.fuente)}</b>
-            hasta el sumidero <b>${nombreNodo(grafoActual.sumidero)}</b> por los que todavía quepa más flujo.
-            Pulsa «Siguiente».</div>`;
-    }
-
-    if (esUltimo) {
-        if (paso.flujo_total === 0) {
-            return `<div><b>No hay ningún camino</b> de ${nombreNodo(grafoActual.fuente)} a
-                ${nombreNodo(grafoActual.sumidero)} en esta red, así que no se puede enviar nada
-                (flujo máximo = 0).</div>`;
-        }
-        const corte = paso.corte_minimo;
-        let corteHTML = '';
-        if (corte && corte.aristas.length > 0) {
-            const filas = corte.aristas.map(a =>
-                `<tr><td>${nombreNodo(a.origen)}→${nombreNodo(a.destino)}</td>
-                 <td>${a.flujo}</td><td>${a.infinita ? '∞' : a.capacidad}</td></tr>`
-            ).join('');
-            const totalCap = corte.aristas.some(a => a.infinita) ? '∞' : corte.aristas.reduce((s, a) => s + a.capacidad, 0);
-            corteHTML = `
-                <h3>Corte mínimo</h3>
-                <p>Nodos del lado de la fuente: <b>${corte.lado_s.map(nombreNodo).join(', ')}</b></p>
-                <table>
-                    <tr><th>Arista</th><th>Flujo</th><th>Capacidad</th></tr>
-                    ${filas}
-                    <tr><td><b>Total</b></td><td></td><td><b>${totalCap}</b></td></tr>
-                </table>
-                <p>Flujo máximo = <b>${paso.flujo_total}</b> = Capacidad del corte mínimo = <b>${totalCap}</b> ✓</p>`;
-        }
-        return `<div><b>Ya no hay ningún camino con espacio libre</b> de
-            ${nombreNodo(grafoActual.fuente)} a ${nombreNodo(grafoActual.sumidero)},
-            así que el flujo máximo es <b>${paso.flujo_total}</b>.${corteHTML}</div>`;
-    }
-
-    // Paso intermedio: desglose del camino
-    const camino = paso.camino;
-    const segmentos = [];
-    for (let i = 0; i < camino.length - 1; i++) {
-        const u = camino[i], v = camino[i + 1];
-        const segmento = obtenerSegmentoFlujo(u, v, flujoAntes, paso.flujo);
-        if (segmento) segmentos.push(segmento);
-    }
-
-    const espacios = segmentos.map(s => s.espacio);
-    const menorEspacio = Math.min(...espacios);
-    const flujoAntesTotal = paso.flujo_total - paso.cuello_botella;
-
-    const segmentosHTML = segmentos.map(s =>
-        `<div><b>${s.tipo}</b><div>${s.tramo}</div>
-         <b>${s.tipo === 'Tramo' ? 'Espacio libre' : 'Flujo que se puede devolver'}</b>
-         <div>${s.espacio}</div></div>`
-    ).join('');
-
-    return `
-        <div><b>Paso ${pasoActual}: se encontró un camino con espacio libre.</b></div>
-        <p>Camino: <b>${camino.map(n => nombreNodo(n)).join(' → ')}</b>
-        (una flecha ← significa que en ese tramo se devuelve flujo)</p>
-        <div>${segmentosHTML}</div>
-        <p>El tramo más estrecho limita todo el camino: el menor espacio libre es
-        <b>${menorEspacio}</b>. Por eso se envían <b>${paso.cuello_botella}</b> unidades
-        por este camino. Flujo total: ${flujoAntesTotal} + ${paso.cuello_botella} =
-        <b>${paso.flujo_total}</b>.</p>`;
 }
 
 // ========== RESULTADO FINAL ==========
@@ -745,14 +924,14 @@ function mostrarResultado(pasoFinal) {
     const flujoMax = pasoFinal.flujo_total;
 
     const filasAristas = pasoFinal.flujo.map(f =>
-        `<tr><td>${nombreNodo(f.origen)}→${nombreNodo(f.destino)}</td>
+        `<tr><td>${nombreNodo(f.origen)} <b class="flecha">→</b> ${nombreNodo(f.destino)}</td>
          <td>${f.flujo}</td><td>${f.infinita ? '∞' : f.capacidad}</td></tr>`
     ).join('');
 
-    const pasosConCamino = pasos.filter(p => p.camino.length > 0);
+    const pasosConCamino = pasos.filter(p => p.camino.length > 0 && p.es_fin_camino);
     const filasCaminos = pasosConCamino.map((p, i) =>
         `<tr><td>${i + 1}</td>
-         <td>${p.camino.map(n => nombreNodo(n)).join(' → ')}</td>
+         <td>${(p.camino_completo || p.camino).map(n => nombreNodo(n)).join(' <b class="flecha">→</b> ')}</td>
          <td>${p.cuello_botella}</td>
          <td>${p.flujo_total}</td></tr>`
     ).join('') || '<tr><td colspan="4">Ninguno</td></tr>';
@@ -762,7 +941,7 @@ function mostrarResultado(pasoFinal) {
     if (corte && corte.aristas.length > 0) {
         const totalCap = corte.aristas.some(a => a.infinita) ? '∞' : corte.aristas.reduce((s, a) => s + a.capacidad, 0);
         const filasCorte = corte.aristas.map(a =>
-            `<tr><td>${nombreNodo(a.origen)}→${nombreNodo(a.destino)}</td>
+            `<tr><td>${nombreNodo(a.origen)} <b class="flecha">→</b> ${nombreNodo(a.destino)}</td>
              <td>${a.flujo}</td><td>${a.infinita ? '∞' : a.capacidad}</td></tr>`
         ).join('');
         corteHTML = `
@@ -774,14 +953,12 @@ function mostrarResultado(pasoFinal) {
                     ${filasCorte}
                     <tr><td><b>Total</b></td><td></td><td><b>${totalCap}</b></td></tr>
                 </table>
-                <p>Flujo máximo = <b>${flujoMax}</b> = Capacidad del corte = <b>${totalCap}</b> ✓</p>
+                <p>Flujo máximo = <b>${flujoMax}</b> = Capacidad del corte = <b>${totalCap}</b></p>
             </div>`;
     }
 
     document.getElementById('resultado-contenido').innerHTML = `
         <div>
-            <label>Valor del flujo máximo</label>
-            <div><b>${flujoMax}</b></div>
             <b>Flujo en cada arista</b>
             <table>
                 <tr><th>Arista</th><th>Flujo</th><th>Capacidad</th></tr>

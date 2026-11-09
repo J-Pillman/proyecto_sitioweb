@@ -5,7 +5,7 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <link rel="icon" href="{{ url_for('static', filename='favicon.ico')}}">
-        <link rel="stylesheet" href="{{url_for('static', filename='css/style.css')}}">
+        <link rel="stylesheet" href="{{url_for('static', filename='css/style.css')}}?v=4">
     </head>
     <body>
 
@@ -21,59 +21,62 @@
             <button id="cancelar-aleatorio">Cancelar</button>
         </div>
 
-        <!-- Cambio: indica la edición por clic de aristas, su borrado y la detección automática de terminales. -->
+        <!-- Cambio: organiza el modo manual por niveles centrados sin el botón Agregar Arista ni su Cancelar. -->
         <div id="modo-manual" style="display:none">
-            <button id="agregar-nodo">Agregar Nodo</button>
-            <button id="agregar-arista">Agregar Arista</button>
-            <div id="form-arista" style="display:none">
+            <div class="nivel-manual">
+                <button id="agregar-nodo">Agregar Nodo</button>
+            </div>
+            <div class="nivel-manual">
+                <label for="arista-capacidad">Capacidad:</label>
                 <input type="number" id="arista-capacidad" min="1" step="1" value="1" placeholder="Capacidad">
+            </div>
+            <div id="form-arista" class="nivel-manual">
                 <button id="confirmar-arista">Elegir vértices</button>
-                <button id="cancelar-arista">Cancelar</button>
                 <span id="estado-arista">Indica la capacidad para empezar.</span>
             </div>
-            <button id="usar-red">Usar Red</button>
-            <button id="cancelar-manual">Cancelar</button>
-            <p id="info-manual"></p>
-            <small>Doble clic en un vértice para eliminarlo junto con sus aristas, o en una arista para eliminarla. Las terminales suplementarias se agregan automáticamente al usar la red.</small>
+            <div class="nivel-manual">
+                <button id="usar-red">Usar Red</button>
+                <button id="cancelar-manual">Cancelar</button>
+            </div>
+            <div class="nivel-manual nivel-info">
+                <p id="info-manual"></p>
+                <small>Doble clic en un vértice para eliminarlo junto con sus aristas, o en una arista para eliminarla. Las terminales suplementarias se agregan automáticamente al usar la red.</small>
+            </div>
         </div>
 
         <div id="grafo"></div>
 
         <div id="contenedor-algoritmo" style="display:none">
-            <button id="ejecutar">Ejecutar Ford-Fulkerson</button>
-            <button id="volver-edicion" style="background-color: #f59e0b; display: none;">Volver</button>
+            <div id="acciones-algoritmo">
+                <button id="ejecutar">Ejecutar Ford-Fulkerson</button>
+                <button id="volver-edicion" style="background-color: #f59e0b; display: none;">Volver</button>
+            </div>
     
             <div id="pasos-algoritmo" style="display:none">
                 <h2>3. Ejecución paso a paso</h2>
-            <div id="navegacion">
-                <button id="anterior" disabled>← Anterior</button>
-                <span id="paso-info"></span>
-                <button id="siguiente" disabled>Siguiente →</button>
-                <button id="ir-final">Ir al final</button>
-                <button id="reiniciar">Reiniciar</button>
-            </div>
 
-            <div id="progreso">
-                <label>Flujo total</label>
-                <div><b id="flujo-total-num">0</b> <span id="flujo-total-max"></span></div>
-                <div id="barra"><i id="barra-fill"></i></div>
-            </div>
+                <div id="bloque-visor-pasos">
+                    <div id="leyenda"></div>
+                    <div id="grafo-pasos"></div>
+                    <div id="navegacion">
+                        <button id="anterior" disabled>← Anterior</button>
+                        <span id="paso-info"></span>
+                        <button id="siguiente" disabled>Siguiente →</button>
+                        <button id="ir-final">Ir al final</button>
+                        <button id="reiniciar">Reiniciar</button>
+                    </div>
+                </div>
 
-            <div id="chips-container">
-                <label>Caminos encontrados (entre paréntesis, lo que se envía por cada uno)</label>
-                <div id="chips"></div>
-            </div>
+                <div id="chips-container">
+                    <label>Caminos encontrados (entre paréntesis, lo que se envía por cada uno)</label>
+                    <div id="chips"></div>
+                </div>
 
-            <div>
-                <b>Red con flujo</b>
-                <span class="legend">En cada flecha: flujo/capacidad. Bajo cada nodo: de qué nodo se llega y cuánto más puede llegar.</span>
-                <div id="grafo-pasos"></div>
-            </div>
-
-            <div id="leyenda">
-            </div>
-
-            <div id="paso-detalle"></div>
+                <div id="progreso">
+                    <label>Flujo total</label>
+                    <div><b id="flujo-total-num">0</b> <span id="flujo-total-max"></span></div>
+                    <div id="barra"><i id="barra-fill"></i></div>
+                </div>
             </div>
         </div>
 
@@ -83,6 +86,6 @@
         </div>
 
         <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
-        <script src="{{url_for('static',filename='js/main.js')}}"></script>
+        <script src="{{url_for('static',filename='js/main.js')}}?v=4"></script>
     </body>
 </html>
