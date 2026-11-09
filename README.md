@@ -8,12 +8,15 @@ Aplicación web en Flask que genera redes de flujo aleatorias o permite construi
 - Cada red tiene una **fuente** (`s`, a la izquierda) y un **sumidero** (`t`, a la derecha), con una ruta principal entre ellos y aristas adicionales hacia adelante.
 - Las aristas tienen capacidades aleatorias (1–10).
 - **Modo manual**: construye tu propia red nodo a nodo.
+  <!-- Cambio: documenta la selección de extremos por clic, el borrado con doble clic y la terminalidad automática. -->
   - Nodos etiquetados con letras (A, B, C…), entre 7 y 16.
-  - Aristas con capacidad personalizada, sin bucles ni duplicados.
+  - Para crear una arista, indica su capacidad y pulsa el vértice inicial y luego el final.
+  - Doble clic en un vértice para eliminarlo con sus aristas; doble clic en una arista para eliminarla.
   - La red se dibuja en vivo mientras la construyes.
-  - La fuente es el primer nodo y el sumidero el último.
+  - Antes de ejecutar, detecta automáticamente las entradas y salidas; si hay varias, agrega una superfuente o un supersumidero con aristas de capacidad infinita.
 - Visualización interactiva y responsiva (PC y móvil): nodos con etiquetas, aristas dirigidas, capacidades y posiciones de nodo preservadas al arrastrar.
 - **Algoritmo de Ford-Fulkerson** paso a paso (en un segundo lienzo dedicado):
+  - Busca caminos aumentantes con BFS, por lo que la variante implementada es Edmonds-Karp.
   - Cada camino aumentante se resalta con su propio color distintivo; colores según el estado de cada arista (llena en rojo, parcial en ámbar o vacía en gris).
   - Flujo/capacidad en cada arista y etiquetas BFS en los nodos.
   - Navegación con botones *Anterior* / *Siguiente* / *Ir al final* / *Reiniciar*, botón *Volver* a edición o con las flechas del teclado.
@@ -47,6 +50,20 @@ Abre [http://127.0.0.1:5001](http://127.0.0.1:5001) y elige un modo:
 - **Manual**: agrega nodos y aristas con **Agregar Nodo** / **Agregar Arista** y pulsa **Usar Red**.
 
 Luego pulsa **Ejecutar Ford-Fulkerson** para ver el algoritmo paso a paso.
+
+## Guía del algoritmo
+
+<!-- Cambio: añade la explicación de factibilidad, etiquetas residuales, aumento, terminación, corte y complejidad. -->
+
+La red es dirigida. Cada arista tiene una capacidad entera no negativa. El flujo empieza en cero y debe cumplir dos condiciones: no superar la capacidad de ninguna arista y conservarse en cada vértice intermedio (flujo que entra = flujo que sale).
+
+En cada iteración el sistema busca con BFS un camino desde la fuente hasta el sumidero usando aristas con capacidad residual positiva. Una arista original permite enviar `capacidad − flujo`; también existe una arista residual inversa que permite devolver flujo y reencaminarlo. El programa elige como cuello de botella la menor capacidad residual del camino y aumenta el flujo por esa cantidad.
+
+Cuando ya no hay un camino aumentante, el flujo es máximo. Los vértices aún alcanzables desde la fuente en la red residual forman un lado del corte mínimo; la capacidad de las aristas que cruzan ese corte debe coincidir con el flujo máximo. Esta igualdad es una comprobación de corrección, no solo un dato adicional.
+
+La búsqueda por BFS hace que esta implementación sea Edmonds-Karp, una variante de Ford-Fulkerson con tiempo de ejecución `O(V · E²)`. Para varias entradas se agrega una superfuente; para varias salidas, un supersumidero. Las capacidades «∞» se representan internamente con un entero mayor que la suma de las capacidades originales, suficiente para que esas aristas no limiten el flujo máximo.
+
+Una red con ciclos y sin entradas o salidas identificables no se procesa automáticamente: debe tener al menos una entrada (sin aristas entrantes y con alguna saliente) y una salida (sin aristas salientes y con alguna entrante). Los vértices aislados no cuentan como terminales.
 
 > **Nota:** `vis-network` se carga desde un CDN, por lo que se necesita conexión a internet al abrir la página.
 

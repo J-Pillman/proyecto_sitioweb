@@ -12,7 +12,11 @@ def index():
 @app.route('/grafo', methods=['POST']) #Ruta que solo acepta POST
 def grafo():
     try:
-        num=int(request.get_json()['n'])    #Lee el JSON del navegador
+        # Cambio: exige que la cantidad de nodos llegue como entero JSON y evita truncar decimales.
+        datos = request.get_json()
+        if not isinstance(datos, dict) or isinstance(datos.get('n'), bool) or not isinstance(datos.get('n'), int):
+            raise ValueError('El numero de nodos debe ser un entero.')
+        num = datos['n']
         return jsonify(generar_red_de_flujo(num))  #Genera el grafo y lo devuelve como JSON
     except (ValueError, KeyError, TypeError) as error:
         return jsonify({'error':str(error)}), 400
@@ -27,4 +31,5 @@ def algoritmo():
         return jsonify({'error':str(error)}), 400
 
 if __name__=='__main__':   #Ejecuta la aplicacion
-    app.run(debug=True, port=5001) #Flask reinicia cuando hay cambios y correra en el puerto 5000 
+    # Cambio: deja documentado el puerto 5001 que utiliza la aplicación.
+    app.run(debug=True, port=5001)

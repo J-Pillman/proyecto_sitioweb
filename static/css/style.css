@@ -131,6 +131,7 @@ input[type="number"]:focus, select:focus {
     font-weight: bold;
 }
 
+/* Cambio: retira los estilos de selectores de terminales que ya se eligen automáticamente. */
 /* =========================================
    4. Lienzos del Grafo
    ========================================= */
